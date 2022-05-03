@@ -58,7 +58,7 @@ int Enqueue(Queue *pQueue, Job j) {
     /* Bad parameter */
     NODE* item = (NODE*) malloc(sizeof (NODE));
     item->data = j;
-
+    
     if ((pQueue == NULL) || (item == NULL)) {
         return FALSE;
     }
@@ -66,6 +66,7 @@ int Enqueue(Queue *pQueue, Job j) {
     if (pQueue->size >= pQueue->limit) {
         return FALSE;
     }
+   
     /*the queue is empty*/
     item->prev = NULL;
     if (pQueue->size == 0) {
@@ -77,7 +78,9 @@ int Enqueue(Queue *pQueue, Job j) {
         pQueue->tail->prev = item;
         pQueue->tail = item;
     }
+    
     pQueue->size++;
+
     return TRUE;
 }
 

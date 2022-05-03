@@ -15,7 +15,7 @@ int job_id = 1;
 // 1 => Landing
 // 2 => Assembly
 // 3 => Emergency
-int t=2;
+int t = 2;
 
 // define condition variables and locks
 pthread_cond_t cond_landing;
@@ -30,7 +30,6 @@ Queue *launch_q;
 Queue *landing_q;
 Queue *assembly_q;
 Queue *emergency_q;
-
 
 void *LandingJob(void *arg);
 void *LaunchJob(void *arg);
@@ -107,10 +106,10 @@ int main(int argc, char **argv)
     */
 
     // your code goes here
-    Queue *launch_q = ConstructQueue(1000);
-    Queue *landing_q = ConstructQueue(1000);
-    Queue *assembly_q = ConstructQueue(1000);
-    Queue *emergency_q = ConstructQueue(1000);
+    launch_q = ConstructQueue(1000);
+    landing_q = ConstructQueue(1000);
+    assembly_q = ConstructQueue(1000);
+    emergency_q = ConstructQueue(1000);
 
     pthread_mutex_init(&jlock, NULL);
     pthread_cond_init(&cond_launch, NULL);
@@ -129,20 +128,18 @@ int main(int argc, char **argv)
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-    pthread_mutex_lock(&jlock);
-    printf("before tower creation\n");
+    //pthread_mutex_lock(&jlock);
+    //printf("before tower creation\n");
     pthread_create(&tower_thread, &attr, ControlTower, (void *)NULL);
 
-    printf("before launch creation\n");
+    //printf("before launch creation\n");
     pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
 
-
-
     pthread_join(tower_thread, NULL);
-    printf("after tower join \n");
+    //printf("after tower join \n");
 
     pthread_join(launch_thread, NULL);
-    printf("after launch join \n");
+    //printf("after launch join \n");
 
     pthread_attr_destroy(&attr);
 
@@ -163,20 +160,20 @@ void *LaunchJob(void *arg)
     job_id++;
     j.type = 0;
 
-    printf("ID of Departing Plane: %d\n", j.ID);
+    //printf("ID of Departing Plane: %d\n", j.ID);
 
     pthread_mutex_lock(&jlock);
     Enqueue(launch_q, j);
 
+    // printf("launchq size is: %d\n", (*launch_q).size);
     if (j.ID == 1)
-    { // if the plane is the first plane
-        printf("Tower! this is captain speaking. This is the first plane. Its ID is: %d\n", j.ID);
+    { 
         pthread_cond_signal(&cond_tower);
     }
     pthread_cond_wait(&cond_launch, &jlock);
-    printf("after condition wait in launch\n");
+    //printf("after condition wait in launch\n");
     pthread_mutex_unlock(&jlock);
-    printf("after mutexunlock in launch \n");
+    //printf("after mutexunlock in launch \n");
     pthread_exit(NULL);
 }
 
@@ -192,14 +189,13 @@ void *AssemblyJob(void *arg)
 
 // the function that controls the air traffic
 void *ControlTower(void *arg)
-{   
+{
     pthread_cond_wait(&cond_tower, &jlock);
 
     pthread_cond_signal(&cond_launch);
-    //DestructQueue(launch_q); // SORUN SORUN SORUN SORUN 
-   // pthread_sleep(2*t);
-   pthread_mutex_unlock(&jlock);
-    
-    pthread_exit(NULL);
+    pthread_sleep(2 * t);
+    Dequeue(launch_q);
+    pthread_mutex_unlock(&jlock);
 
+    pthread_exit(NULL);
 }
