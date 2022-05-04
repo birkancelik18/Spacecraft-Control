@@ -182,7 +182,9 @@ int main(int argc, char **argv)
     // printf("before tower creation\n");
 
     while (is_in_simulation(ending_hour, ending_minute, ending_sec))
-    {
+    {   
+        // burada thread yaratınca beklediğim gibi çalışmadı threadleri 
+        // join etmek yerine fonksiyonların içinde exit diyebiliriz
         printf("inside simulation time simulation\n");
         pthread_sleep(4);
     }
