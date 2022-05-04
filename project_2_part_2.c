@@ -9,7 +9,7 @@
 int simulationTime = 120;    // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
-float p = 0.5;               // probability of a ground job (launch & assembly)
+float p = 0.2;               // probability of a ground job (launch & assembly)
 
 int job_id = 1;
 // 0 => Launch
@@ -374,9 +374,20 @@ void *PadA(void *arg)
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
         printf("launch_q size is: \t\t%d\n", launch_queue_size);
-        if (landing_queue_size > 0)
-        {
+        printf("landing_q size is: \t\t%d\n", landing_queue_size);
+        printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
+        if (launch_queue_size >= 3)
+        {
+            Job j = Dequeue(launch_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padA to launch job %d\n", j.ID);
+
+            pthread_sleep(2 * t);
+            printf("Launch job %d is done on padA\n", j.ID);
+        }
+        else if (landing_queue_size > 0)
+        {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
             printf("using padA to land job %d\n", j.ID);
@@ -385,7 +396,6 @@ void *PadA(void *arg)
         }
         else if (launch_queue_size > 0)
         {
-
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
             printf("using padA to launch job %d\n", j.ID);
@@ -412,10 +422,21 @@ void *PadB(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
-        printf("assemble_q size is: \t\t%d\n", assemble_queue_size);
-        if (landing_queue_size > 0)
-        {
+        printf("launch_q size is: \t\t%d\n", launch_queue_size);
+        printf("landing_q size is: \t\t%d\n", landing_queue_size);
+        printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
+
+        if (assemble_queue_size >= 3)
+        {
+            Job j = Dequeue(assemble_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padB to assemble job %d\n", j.ID);
+            pthread_sleep(6 * t);
+            printf("Assemble job %d is done on padB\n", j.ID);
+        }
+        else if (landing_queue_size > 0)
+        {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
             printf("using padB to land job %d\n", j.ID);
