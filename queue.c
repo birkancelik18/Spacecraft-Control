@@ -92,6 +92,7 @@ Job Dequeue(Queue *pQueue) {
         return ret;
     item = pQueue->head;
     pQueue->head = (pQueue->head)->prev;
+
     pQueue->size--;
     ret = item->data;
     free(item);
