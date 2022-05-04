@@ -101,14 +101,14 @@ struct tm *calculate_ending_time()
 // it gets current time and compares it with ending time hour minute and sec values
 int is_in_simulation(int ending_hour, int ending_minute, int ending_sec)
 {
-    //printf("inside is_in_simulation\n");
+    // printf("inside is_in_simulation\n");
     time_t rawtime;
     time(&rawtime);
     struct tm *current_timeinfo = localtime(&rawtime);
 
     int diff = (ending_hour - current_timeinfo->tm_hour) * 3600 + (ending_minute - current_timeinfo->tm_min) * 60 +
                (ending_sec - current_timeinfo->tm_sec);
-    //printf("diff is: %d\n", diff);
+    printf("diff is: %d\n", diff);
     return diff > 0;
 }
 
@@ -181,18 +181,24 @@ int main(int argc, char **argv)
 
     // printf("before tower creation\n");
 
-    while (is_in_simulation(ending_hour, ending_minute, ending_sec))
-    {   
-        // burada thread yaratınca beklediğim gibi çalışmadı threadleri 
-        // join etmek yerine fonksiyonların içinde exit diyebiliriz
-        printf("inside simulation time simulation\n");
-        pthread_sleep(4);
-    }
+    
     pthread_mutex_lock(&jlock);
     pthread_create(&tower_thread, &attr, ControlTower, (void *)NULL);
 
     // printf("before launch creation\n");
     pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
+
+    while (is_in_simulation(ending_hour, ending_minute, ending_sec))
+    {
+        // burada thread yaratınca beklediğim gibi çalışmadı threadleri
+        // join etmek yerine fonksiyonların içinde exit diyebiliriz
+        printf("inside simulation time simulation\n");
+        // printf("before padB_thread creation\n");
+        pthread_create(&padB_thread, &attr, PadB, (void *)NULL);
+        printf("After padB_thread creation\n");
+        pthread_sleep(2);    
+    }
+
 
     // printf("before padA_thread creation\n");
     pthread_create(&padA_thread, &attr, PadA, (void *)NULL);
@@ -206,8 +212,8 @@ int main(int argc, char **argv)
     pthread_join(launch_thread, NULL);
     // printf("after launch join \n");
 
-    pthread_join(padA_thread, NULL);
-    // printf("after tower join \n");
+    // pthread_join(padA_thread, NULL);
+    //  printf("after tower join \n");
 
     pthread_join(padB_thread, NULL);
     // printf("after launch join \n");
@@ -291,5 +297,7 @@ void *PadA(void *arg)
 }
 // the function that creates plane threads for padB
 void *PadB(void *arg)
-{
+{   
+   printf("This is thread B\n");
+   printf("Launchq size is:%d \n", launch_q->size);
 }
