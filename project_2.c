@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-int simulationTime = 60;    // simulation time
+int simulationTime = 20;     // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
 float p = 0.2;               // probability of a ground job (launch & assembly)
@@ -84,7 +84,7 @@ int pthread_sleep(int seconds)
 struct tm *add_sim_time_to_current_time(struct tm *timeinfo)
 {
     timeinfo->tm_sec += simulationTime;
-    //mktime(timeinfo);
+    // mktime(timeinfo);
     return timeinfo;
 }
 struct tm *calculate_ending_time()
@@ -97,16 +97,18 @@ struct tm *calculate_ending_time()
     // printf("ending time info hour %d, minute %d, seconds %d\n", end_timeinfo->tm_hour,end_timeinfo->tm_min, end_timeinfo->tm_sec);
     return end_timeinfo;
 }
-// function finds differeence in seeconds between given time object and current time
-int is_in_simulation(int hour, int minute, int sec)
+// function return pozitif if simulation continues, 0 if it ends
+// it gets current time and compares it with ending time hour minute and sec values
+int is_in_simulation(int ending_hour, int ending_minute, int ending_sec)
 {
+    //printf("inside is_in_simulation\n");
     time_t rawtime;
     time(&rawtime);
     struct tm *current_timeinfo = localtime(&rawtime);
 
-    int diff = (hour - current_timeinfo->tm_hour) * 3600 + (minute - current_timeinfo->tm_min) * 60 +
-               (sec - current_timeinfo->tm_sec);
-    printf("diff is: %d\n", diff);
+    int diff = (ending_hour - current_timeinfo->tm_hour) * 3600 + (ending_minute - current_timeinfo->tm_min) * 60 +
+               (ending_sec - current_timeinfo->tm_sec);
+    //printf("diff is: %d\n", diff);
     return diff > 0;
 }
 
@@ -168,37 +170,44 @@ int main(int argc, char **argv)
     pthread_t padB_thread;
 
     end_timeinfo = calculate_ending_time();
-    int ending_hour=end_timeinfo->tm_hour;
+    int ending_hour = end_timeinfo->tm_hour;
     int ending_minute = end_timeinfo->tm_min;
     int ending_sec = end_timeinfo->tm_sec;
-    //printf("in simulation %d\n",is_in_simulation(end_timeinfo->tm_hour, end_timeinfo->tm_min, end_timeinfo->tm_sec));
-    while(is_in_simulation(ending_hour, ending_minute, ending_sec)){
-        sleep(2);
-        printf("show is goin on\n");   
+    // printf("in simulation %d\n",is_in_simulation(end_timeinfo->tm_hour, end_timeinfo->tm_min, end_timeinfo->tm_sec));
 
-    }
-    printf("I passed while");
-    /* Create threads to perform the dotproduct  */
+    // create threads
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-    pthread_mutex_lock(&jlock);
     // printf("before tower creation\n");
+
+    while (is_in_simulation(ending_hour, ending_minute, ending_sec))
+    {
+        printf("inside simulation time simulation\n");
+        pthread_sleep(4);
+    }
+    pthread_mutex_lock(&jlock);
     pthread_create(&tower_thread, &attr, ControlTower, (void *)NULL);
 
     // printf("before launch creation\n");
     pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
 
-    // printf("before launch creation\n");
+    // printf("before padA_thread creation\n");
     pthread_create(&padA_thread, &attr, PadA, (void *)NULL);
 
-    // printf("before launch creation\n");
+    // printf("before padB_thread creation\n");
     pthread_create(&padB_thread, &attr, PadB, (void *)NULL);
 
     pthread_join(tower_thread, NULL);
     // printf("after tower join \n");
 
     pthread_join(launch_thread, NULL);
+    // printf("after launch join \n");
+
+    pthread_join(padA_thread, NULL);
+    // printf("after tower join \n");
+
+    pthread_join(padB_thread, NULL);
     // printf("after launch join \n");
 
     pthread_attr_destroy(&attr);
