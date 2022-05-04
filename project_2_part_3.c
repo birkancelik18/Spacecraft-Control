@@ -59,6 +59,8 @@ int ending_hour;
 int ending_minute;
 int ending_sec;
 
+int emergency_flag;
+
 void *LandingJob(void *arg);
 void *LaunchJob(void *arg);
 void *EmergencyJob(void *arg);
@@ -192,6 +194,8 @@ int main(int argc, char **argv)
     ending_hour = end_timeinfo->tm_hour;
     ending_minute = end_timeinfo->tm_min;
     ending_sec = end_timeinfo->tm_sec;
+
+    emergency_flag = 0;
     // printf("in simulation %d\n",is_in_simulation(end_timeinfo->tm_hour, end_timeinfo->tm_min, end_timeinfo->tm_sec));
 
     // create threads
@@ -213,25 +217,42 @@ int main(int argc, char **argv)
     while (is_in_simulation(ending_hour, ending_minute, ending_sec))
     {
 
-        double random = (rand() % 100) / 100.0;
+        time_t curr_time;
+        time(&curr_time);
+        struct tm *current_timeinfo = localtime(&curr_time);
 
-        if (random < p / 2)
+        int time_left = (ending_hour - current_timeinfo->tm_hour) * 3600 + (ending_minute - current_timeinfo->tm_min) * 60 +
+                        (ending_sec - current_timeinfo->tm_sec);
+
+        int time_passed = simulationTime - time_left;
+        emergency_flag = (time_passed % 40 == 0) && (time_passed > 0);
+
+        if (emergency_flag)
         {
-            // launch
-            //  printf("before launch creation\n");
-            pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
-        }
-        else if (p / 2 <= random && random < p)
-        {
-            // assembly
-            pthread_create(&assembly_thread, &attr, AssemblyJob, (void *)NULL);
+            pthread_create(&emergency_thread, &attr, EmergencyJob, (void *)NULL);
+            pthread_create(&emergency_thread, &attr, EmergencyJob, (void *)NULL);
         }
         else
         {
-            // land
-            pthread_create(&landing_thread, &attr, LandingJob, (void *)NULL);
+            double random = (rand() % 100) / 100.0;
+            if (random < p / 2)
+            {
+                // launch
+                //  printf("before launch creation\n");
+                pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
+            }
+            else if (p / 2 <= random && random < p)
+            {
+                // assembly
+                pthread_create(&assembly_thread, &attr, AssemblyJob, (void *)NULL);
+            }
+            else
+            {
+                // land
+                pthread_create(&landing_thread, &attr, LandingJob, (void *)NULL);
+            }
         }
-
+        printf("time left: \t\t\t\t%d\n", time_left);
         pthread_sleep(t);
     }
     // pthread_join(tower_thread, NULL);
@@ -295,6 +316,21 @@ void *LaunchJob(void *arg)
 // the function that creates plane threads for emergency landing
 void *EmergencyJob(void *arg)
 {
+    Job j;
+    j.type = 3;
+    pthread_mutex_lock(&idLock);
+    j.ID = job_id;
+    job_id++;
+    pthread_mutex_unlock(&idLock);
+
+    pthread_mutex_lock(&jlock);
+    Enqueue(emergency_q, j);
+    printf("emergency job %d created\n", j.ID);
+
+    pthread_cond_signal(&cond_tower);
+
+    pthread_mutex_unlock(&jlock);
+    pthread_exit(NULL);
 }
 
 // the function that creates plane threads for emergency landing
@@ -329,27 +365,40 @@ void *ControlTower(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
+        int emergency_queue_size = emergency_q->size;
 
-        if (landing_queue_size > 0)
+        if (emergency_queue_size > 0)
         {
 
             pthread_cond_signal(&cond_padA);
             pthread_cond_signal(&cond_padB);
             pthread_mutex_unlock(&jlock);
+            emergency_flag = 0;
         }
         else
         {
-            if (launch_queue_size > 0)
+
+            if (landing_queue_size > 0)
             {
-                // printf("Tower before signal\n");
+
                 pthread_cond_signal(&cond_padA);
-                pthread_mutex_unlock(&jlock);
-            }
-            if (assemble_queue_size > 0)
-            {
-                // printf("Tower before signal\n");
                 pthread_cond_signal(&cond_padB);
                 pthread_mutex_unlock(&jlock);
+            }
+            else
+            {
+                if (launch_queue_size > 0)
+                {
+                    // printf("Tower before signal\n");
+                    pthread_cond_signal(&cond_padA);
+                    pthread_mutex_unlock(&jlock);
+                }
+                if (assemble_queue_size > 0)
+                {
+                    // printf("Tower before signal\n");
+                    pthread_cond_signal(&cond_padB);
+                    pthread_mutex_unlock(&jlock);
+                }
             }
         }
         // pthread_mutex_unlock(&jlock);
@@ -373,11 +422,23 @@ void *PadA(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
+        int emergency_queue_size = emergency_q->size;
+
         printf("launch_q size is: \t\t%d\n", launch_queue_size);
         printf("landing_q size is: \t\t%d\n", landing_queue_size);
         printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
+        printf("emergency_q size is: \t\t%d\n", emergency_queue_size);
 
-        if (launch_queue_size >= 3)
+        if (emergency_queue_size > 0)
+        {
+            Job j = Dequeue(emergency_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padA to land emergency job %d\n", j.ID);
+
+            pthread_sleep(t);
+            printf("Emergency landing job %d is done on padA\n", j.ID);
+        }
+        else if (launch_queue_size >= 3)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
@@ -422,12 +483,23 @@ void *PadB(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
+        int emergency_queue_size = emergency_q->size;
+
         printf("launch_q size is: \t\t%d\n", launch_queue_size);
         printf("landing_q size is: \t\t%d\n", landing_queue_size);
         printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
+        printf("emergency_q size is: \t\t%d\n", emergency_queue_size);
 
+        if (emergency_queue_size > 0)
+        {
+            Job j = Dequeue(emergency_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padB to land emergency job %d\n", j.ID);
 
-        if (assemble_queue_size >= 3)
+            pthread_sleep(t);
+            printf("Emergency landing job %d is done on padB\n", j.ID);
+        }
+        else if (assemble_queue_size >= 3)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
