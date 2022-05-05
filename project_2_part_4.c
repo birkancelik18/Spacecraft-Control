@@ -655,7 +655,7 @@ void printLog(Queue *q)
         exit(1);
     }
 
-    fprintf(log_file,"EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time \t\t Pad\n");
+    fprintf(log_file,"EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time \t Pad\n");
 
     while (!isEmpty(q))
     {
