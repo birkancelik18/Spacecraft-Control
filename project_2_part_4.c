@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-int simulationTime = 200;    // simulation time
+int simulationTime = 120;    // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
 float p = 0.2;               // probability of a ground job (launch & assembly)
@@ -32,8 +32,6 @@ Queue *launch_q;
 Queue *landing_q;
 Queue *assemble_q;
 Queue *emergency_q;
-Queue *padA_q;
-Queue *padB_q;
 Queue *log_q;
 
 // declare threads
@@ -181,8 +179,7 @@ int main(int argc, char **argv)
     landing_q = ConstructQueue(1000);
     assemble_q = ConstructQueue(1000);
     emergency_q = ConstructQueue(1000);
-    padA_q = ConstructQueue(1000);
-    padB_q = ConstructQueue(1000);
+
     log_q = ConstructQueue(1000);
 
     pthread_mutex_init(&jlock, NULL);
@@ -305,8 +302,6 @@ int main(int argc, char **argv)
     DestructQueue(landing_q);
     DestructQueue(assemble_q);
     DestructQueue(emergency_q);
-    DestructQueue(padA_q);
-    DestructQueue(padB_q);
     DestructQueue(log_q);
 
     return 0;

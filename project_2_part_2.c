@@ -6,24 +6,17 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-int simulationTime = 200;    // simulation time
+int simulationTime = 120;    // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
 float p = 0.2;               // probability of a ground job (launch & assembly)
 
 int job_id = 1;
-// 0 => Launch
-// 1 => Landing
-// 2 => Assembly
-// 3 => Emergency
+
 int t;
 
 // define condition variables and locks
-pthread_cond_t cond_landing;
-pthread_cond_t cond_launch;
-pthread_cond_t cond_assembly;
 pthread_cond_t cond_tower;
-pthread_cond_t cond_emergency;
 pthread_cond_t cond_padA;
 pthread_cond_t cond_padB;
 
@@ -38,8 +31,7 @@ Queue *launch_q;
 Queue *landing_q;
 Queue *assemble_q;
 Queue *emergency_q;
-Queue *padA_q;
-Queue *padB_q;
+
 
 // declare threads
 pthread_t launch_thread;
@@ -111,24 +103,19 @@ struct tm *calculate_ending_time()
 {
     time(&rawtime);
     inital_timeinfo = localtime(&rawtime);
-    // printf("Current local time hour %d, minute %d, seconds %d\n", inital_timeinfo->tm_hour,inital_timeinfo->tm_min, inital_timeinfo->tm_sec);
 
     end_timeinfo = add_sim_time_to_current_time(inital_timeinfo);
-    // printf("ending time info hour %d, minute %d, seconds %d\n", end_timeinfo->tm_hour,end_timeinfo->tm_min, end_timeinfo->tm_sec);
     return end_timeinfo;
 }
 // function return pozitif if simulation continues, 0 if it ends
 // it gets current time and compares it with ending time hour minute and sec values
 int is_in_simulation(int ending_hour, int ending_minute, int ending_sec)
 {
-    // printf("inside is_in_simulation\n");
     time_t rawtime;
     time(&rawtime);
     struct tm *current_timeinfo = localtime(&rawtime);
-
     int diff = (ending_hour - current_timeinfo->tm_hour) * 3600 + (ending_minute - current_timeinfo->tm_min) * 60 +
                (ending_sec - current_timeinfo->tm_sec);
-    // printf("diff is: %d\n", diff);
     return diff > 0;
 }
 
@@ -171,8 +158,6 @@ int main(int argc, char **argv)
     landing_q = ConstructQueue(1000);
     assemble_q = ConstructQueue(1000);
     emergency_q = ConstructQueue(1000);
-    padA_q = ConstructQueue(1000);
-    padB_q = ConstructQueue(1000);
 
     pthread_mutex_init(&jlock, NULL);
     pthread_mutex_init(&idLock, NULL);
@@ -180,10 +165,6 @@ int main(int argc, char **argv)
     pthread_mutex_init(&padALock, NULL);
     pthread_mutex_init(&padBLock, NULL);
 
-    pthread_cond_init(&cond_launch, NULL);
-    pthread_cond_init(&cond_landing, NULL);
-    pthread_cond_init(&cond_assembly, NULL);
-    pthread_cond_init(&cond_emergency, NULL);
     pthread_cond_init(&cond_padA, NULL);
     pthread_cond_init(&cond_padB, NULL);
 
@@ -192,21 +173,15 @@ int main(int argc, char **argv)
     ending_hour = end_timeinfo->tm_hour;
     ending_minute = end_timeinfo->tm_min;
     ending_sec = end_timeinfo->tm_sec;
-    // printf("in simulation %d\n",is_in_simulation(end_timeinfo->tm_hour, end_timeinfo->tm_min, end_timeinfo->tm_sec));
 
     // create threads
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-    // printf("before tower creation\n");
-
-    // pthread_mutex_lock(&jlock);
     pthread_create(&tower_thread, &attr, ControlTower, (void *)NULL);
 
-    // printf("before padA_thread creation\n");
     pthread_create(&padA_thread, &attr, PadA, (void *)NULL);
 
-    // printf("before padB_thread creation\n");
     pthread_create(&padB_thread, &attr, PadB, (void *)NULL);
 
     int counter = simulationTime;
@@ -218,7 +193,6 @@ int main(int argc, char **argv)
         if (random < p / 2)
         {
             // launch
-            //  printf("before launch creation\n");
             pthread_create(&launch_thread, &attr, LaunchJob, (void *)NULL);
         }
         else if (p / 2 <= random && random < p)
@@ -234,18 +208,6 @@ int main(int argc, char **argv)
 
         pthread_sleep(t);
     }
-    // pthread_join(tower_thread, NULL);
-    //  printf("after tower join \n");
-
-    // pthread_join(launch_thread, NULL);
-    //  printf("after launch join \n");
-
-    // pthread_join(padA_thread, NULL);
-    //  printf("after tower join \n");
-
-    // pthread_join(padB_thread, NULL);
-    //  printf("after launch join \n");
-
     pthread_attr_destroy(&attr);
 
     return 0;
@@ -263,7 +225,6 @@ void *LandingJob(void *arg)
 
     pthread_mutex_lock(&jlock);
     Enqueue(landing_q, j);
-    printf("landing job %d created\n", j.ID);
 
     pthread_cond_signal(&cond_tower);
 
@@ -284,7 +245,6 @@ void *LaunchJob(void *arg)
 
     pthread_mutex_lock(&jlock);
     Enqueue(launch_q, j);
-    printf("launch job %d created\n", j.ID);
 
     pthread_cond_signal(&cond_tower);
 
@@ -309,7 +269,6 @@ void *AssemblyJob(void *arg)
 
     pthread_mutex_lock(&jlock);
     Enqueue(assemble_q, j);
-    printf("assembly job %d created\n", j.ID);
     pthread_cond_signal(&cond_tower);
 
     pthread_mutex_unlock(&jlock);
@@ -324,7 +283,6 @@ void *ControlTower(void *arg)
     while (is_in_simulation(ending_hour, ending_minute, ending_sec))
     {
         pthread_cond_wait(&cond_tower, &towerLock);
-        printf("Tower is awaken...\n");
         pthread_mutex_lock(&jlock);
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
@@ -341,22 +299,16 @@ void *ControlTower(void *arg)
         {
             if (launch_queue_size > 0)
             {
-                // printf("Tower before signal\n");
                 pthread_cond_signal(&cond_padA);
                 pthread_mutex_unlock(&jlock);
             }
             if (assemble_queue_size > 0)
             {
-                // printf("Tower before signal\n");
                 pthread_cond_signal(&cond_padB);
                 pthread_mutex_unlock(&jlock);
             }
         }
-        // pthread_mutex_unlock(&jlock);
     }
-
-    // Start piece of a rocket needs to land, or a team of engineers and mechanics are ready to start
-    // assembly, they will contact the control tower and notify the tower about it.
 
     pthread_exit(NULL);
 }
@@ -364,7 +316,6 @@ void *ControlTower(void *arg)
 // the function that creates plane threads for padA
 void *PadA(void *arg)
 {
-    printf("PadA is awaken...\n");
     pthread_mutex_lock(&padALock);
     while (is_in_simulation(ending_hour, ending_minute, ending_sec))
     {
@@ -374,45 +325,33 @@ void *PadA(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
-        printf("launch_q size is: \t\t%d\n", launch_queue_size);
-        printf("landing_q size is: \t\t%d\n", landing_queue_size);
-        printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
         if (launch_queue_size >= 3 && turn == 0)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to launch job %d\n", j.ID);
 
             pthread_sleep(2 * t);
-            printf("Launch job %d is done on padA\n", j.ID);
             turn = 1;
         }
         else if (launch_queue_size >= 3 && turn == 1)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to land job %d\n", j.ID);
             pthread_sleep(t);
-            printf("Landing job %d is done on padA\n", j.ID);
             turn = 0;
         }
         else if (landing_queue_size > 0)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to land job %d\n", j.ID);
             pthread_sleep(t);
-            printf("Landing job %d is done on padA\n", j.ID);
         }
         else if (launch_queue_size > 0)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to launch job %d\n", j.ID);
-
             pthread_sleep(2 * t);
-            printf("Launch job %d is done on padA\n", j.ID);
         }
 
         pthread_mutex_unlock(&jlock);
@@ -424,7 +363,6 @@ void *PadA(void *arg)
 // the function that creates plane threads for padB
 void *PadB(void *arg)
 {
-    printf("PadB is awaken...\n");
     pthread_mutex_lock(&padBLock);
     while (is_in_simulation(ending_hour, ending_minute, ending_sec))
     {
@@ -434,43 +372,32 @@ void *PadB(void *arg)
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
-        printf("launch_q size is: \t\t%d\n", launch_queue_size);
-        printf("landing_q size is: \t\t%d\n", landing_queue_size);
-        printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
         if (assemble_queue_size >= 3 && turn == 0)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to assemble job %d\n", j.ID);
             pthread_sleep(6 * t);
-            printf("Assemble job %d is done on padB\n", j.ID);
             turn = 1;
         }
         else if (assemble_queue_size >= 3 && turn == 1)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to land job %d\n", j.ID);
             pthread_sleep(t);
-            printf("Landing job %d is done on padB\n", j.ID);
             turn = 0;
         }
         else if (landing_queue_size > 0)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to land job %d\n", j.ID);
             pthread_sleep(t);
-            printf("Landing job %d is done on padB\n", j.ID);
         }
         else if (assemble_queue_size > 0)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to assemble job %d\n", j.ID);
             pthread_sleep(6 * t);
-            printf("Assemble job %d is done on padB\n", j.ID);
         }
 
         pthread_mutex_unlock(&jlock);
