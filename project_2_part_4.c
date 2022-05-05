@@ -9,7 +9,7 @@
 int simulationTime = 200;     // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
-float p = 0.2;               // probability of a ground job (launch & assembly)
+float p = 0.6;               // probability of a ground job (launch & assembly)
 int timeLimit = 38;          // time limit for printing queue contents
 
 int job_id = 1;

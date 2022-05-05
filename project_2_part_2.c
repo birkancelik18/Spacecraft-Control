@@ -370,6 +370,7 @@ void *PadA(void *arg)
     {
         pthread_cond_wait(&cond_padA, &padALock);
         pthread_mutex_lock(&jlock);
+        int turn = 0;
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
@@ -377,7 +378,7 @@ void *PadA(void *arg)
         printf("landing_q size is: \t\t%d\n", landing_queue_size);
         printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
-        if (launch_queue_size >= 3)
+        if (launch_queue_size >= 3 && turn == 0)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
@@ -385,6 +386,16 @@ void *PadA(void *arg)
 
             pthread_sleep(2 * t);
             printf("Launch job %d is done on padA\n", j.ID);
+            turn = 1;
+        }
+        else if (launch_queue_size >= 3 && turn == 1)
+        {
+            Job j = Dequeue(landing_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padA to land job %d\n", j.ID);
+            pthread_sleep(t);
+            printf("Landing job %d is done on padA\n", j.ID);
+            turn = 0;
         }
         else if (landing_queue_size > 0)
         {
@@ -419,6 +430,7 @@ void *PadB(void *arg)
     {
         pthread_cond_wait(&cond_padB, &padBLock);
         pthread_mutex_lock(&jlock);
+        int turn = 0;
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
         int assemble_queue_size = assemble_q->size;
@@ -426,14 +438,23 @@ void *PadB(void *arg)
         printf("landing_q size is: \t\t%d\n", landing_queue_size);
         printf("assembly_q size is: \t\t%d\n", assemble_queue_size);
 
-
-        if (assemble_queue_size >= 3)
+        if (assemble_queue_size >= 3 && turn == 0)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
             printf("using padB to assemble job %d\n", j.ID);
             pthread_sleep(6 * t);
             printf("Assemble job %d is done on padB\n", j.ID);
+            turn = 1;
+        }
+        else if (assemble_queue_size >= 3 && turn == 1)
+        {
+            Job j = Dequeue(landing_q);
+            pthread_mutex_unlock(&jlock);
+            printf("using padB to land job %d\n", j.ID);
+            pthread_sleep(t);
+            printf("Landing job %d is done on padB\n", j.ID);
+            turn = 0;
         }
         else if (landing_queue_size > 0)
         {
