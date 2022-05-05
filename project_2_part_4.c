@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-int simulationTime = 200;     // simulation time
+int simulationTime = 20;    // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
 float p = 0.2;               // probability of a ground job (launch & assembly)
@@ -382,7 +382,6 @@ void *AssemblyJob(void *arg)
 
     pthread_mutex_unlock(&jlock);
 
-
     pthread_exit(NULL);
 }
 
@@ -643,7 +642,20 @@ void *PadB(void *arg)
 
 void printLog(Queue *q)
 {
-    printf("EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time \t\t Pad\n");
+
+    int num;
+    FILE *log_file;
+
+    // use appropriate location if you are using MacOS or Linux
+    log_file = fopen("events.log", "w");
+
+    if (log_file == NULL)
+    {
+        printf("Error!");
+        exit(1);
+    }
+
+    fprintf(log_file,"EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time \t\t Pad\n");
 
     while (!isEmpty(q))
     {
@@ -677,6 +689,9 @@ void printLog(Queue *q)
         {
             strcpy(pad, "B");
         }
-        printf("%d \t\t\t %s \t\t\t %d \t\t\t %d \t\t\t %d \t\t\t %s\n", j.ID, status, j.requestTime, j.endTime, turnaroundTime, pad);
+        fprintf(log_file,"%d \t\t\t %s \t\t %d \t\t\t %d \t\t\t %d \t\t\t %s\n", j.ID, status, j.requestTime, j.endTime, turnaroundTime, pad);
     }
+
+
+    fclose(log_file);
 }
