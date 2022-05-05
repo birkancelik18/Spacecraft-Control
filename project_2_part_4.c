@@ -6,10 +6,11 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-int simulationTime = 20;    // simulation time
+int simulationTime = 200;     // simulation time
 int seed = 10;               // seed for randomness
 int emergencyFrequency = 40; // frequency of emergency
 float p = 0.2;               // probability of a ground job (launch & assembly)
+int timeLimit = 38;          // time limit for printing queue contents
 
 int job_id = 1;
 // 0 => Launch
@@ -169,6 +170,10 @@ int main(int argc, char **argv)
         {
             seed = atoi(argv[++i]);
         }
+        else if (!strcmp(argv[i], "-r"))
+        {
+            timeLimit = atoi(argv[++i]);
+        }
     }
 
     srand(seed); // feed the seed
@@ -213,6 +218,17 @@ int main(int argc, char **argv)
 
     emergency_flag = 0;
 
+    FILE *q_container_file;
+
+    // use appropriate location if you are using MacOS or Linux
+    q_container_file = fopen("q_container.log", "w");
+
+    if (q_container_file == NULL)
+    {
+        printf("Error!");
+        exit(1);
+    }
+
     // printf("in simulation %d\n",is_in_simulation(end_timeinfo->tm_hour, end_timeinfo->tm_min, end_timeinfo->tm_sec));
 
     // create threads
@@ -241,7 +257,7 @@ int main(int argc, char **argv)
         int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
 
         int time_passed = simulationTime - time_left;
-        emergency_flag = (time_passed % 40 == 0) && (time_passed > 0);
+        emergency_flag = (time_passed % emergencyFrequency == 0) && (time_passed > 0);
 
         if (emergency_flag)
         {
@@ -268,6 +284,41 @@ int main(int argc, char **argv)
                 pthread_create(&landing_thread, &attr, LandingJob, (void *)NULL);
             }
         }
+        if (timeLimit <= time_passed)
+        {
+            // print landing queue
+            pthread_mutex_lock(&jlock);
+            int landing_size = landing_q->size;
+            int launch_size = launch_q->size;
+            int assemble_size = assemble_q->size;
+            // fprintf(q_container_file,"q size: %d %d %d\n", landing_size, launch_size, assemble_size);
+            fprintf(q_container_file, "At %d sec landing: ", time_passed);
+            for (int i = 0; i < landing_size; i++)
+            {
+                Job temp_j = Dequeue(landing_q);
+                fprintf(q_container_file, "%d ", temp_j.ID);
+                Enqueue(landing_q, temp_j);
+            }
+            fprintf(q_container_file, "\n");
+            fprintf(q_container_file, "At %d sec launch: ", time_passed);
+            for (int i = 0; i < launch_size; i++)
+            {
+                Job temp_j = Dequeue(launch_q);
+                fprintf(q_container_file, "%d ", temp_j.ID);
+                Enqueue(launch_q, temp_j);
+            }
+            fprintf(q_container_file, "\n");
+            fprintf(q_container_file, "At %d sec assembly: ", time_passed);
+            for (int i = 0; i < assemble_size; i++)
+            {
+                Job temp_j = Dequeue(assemble_q);
+                fprintf(q_container_file, "%d ", temp_j.ID);
+                Enqueue(assemble_q, temp_j);
+            }
+            fprintf(q_container_file, "\n");
+            pthread_mutex_unlock(&jlock);
+        }
+
         printf("time left: \t\t\t\t%d\n", time_left);
         pthread_sleep(t);
     }
@@ -284,7 +335,7 @@ int main(int argc, char **argv)
     //   printf("after launch join \n");
 
     pthread_attr_destroy(&attr);
-
+    fclose(q_container_file);
     printLog(log_q);
 
     return 0;
@@ -301,7 +352,7 @@ void *LandingJob(void *arg)
     pthread_mutex_unlock(&idLock);
 
     pthread_mutex_lock(&jlock);
-    printf("landing job %d created\n", j.ID);
+    // printf("landing job %d created\n", j.ID);
     int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
     int land_req_time = simulationTime - time_left;
     j.requestTime = land_req_time;
@@ -323,7 +374,7 @@ void *LaunchJob(void *arg)
     pthread_mutex_unlock(&idLock);
 
     pthread_mutex_lock(&jlock);
-    printf("launch job %d created\n", j.ID);
+    // printf("launch job %d created\n", j.ID);
 
     int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
     int launch_req_time = simulationTime - time_left;
@@ -347,7 +398,7 @@ void *EmergencyJob(void *arg)
     pthread_mutex_unlock(&idLock);
 
     pthread_mutex_lock(&jlock);
-    printf("emergency job %d created\n", j.ID);
+    // printf("emergency job %d created\n", j.ID);
 
     int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
     int emergency_req_time = simulationTime - time_left;
@@ -372,7 +423,7 @@ void *AssemblyJob(void *arg)
     pthread_mutex_unlock(&idLock);
 
     pthread_mutex_lock(&jlock);
-    printf("assembly job %d created\n", j.ID);
+    // printf("assembly job %d created\n", j.ID);
     int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
     int assembly_req_time = simulationTime - time_left;
     j.requestTime = assembly_req_time;
@@ -393,7 +444,7 @@ void *ControlTower(void *arg)
     while (time_left_to_end(ending_hour, ending_minute, ending_sec) > 0)
     {
         pthread_cond_wait(&cond_tower, &towerLock);
-        printf("Tower is awaken...\n");
+        // printf("Tower is awaken...\n");
         pthread_mutex_lock(&jlock);
         int launch_queue_size = launch_q->size;
         int landing_queue_size = landing_q->size;
@@ -446,7 +497,7 @@ void *ControlTower(void *arg)
 // the function that creates plane threads for padA
 void *PadA(void *arg)
 {
-    printf("PadA is awaken...\n");
+    // printf("PadA is awaken...\n");
     pthread_mutex_lock(&padALock);
     while (time_left_to_end(ending_hour, ending_minute, ending_sec))
     {
@@ -466,7 +517,7 @@ void *PadA(void *arg)
         {
             Job j = Dequeue(emergency_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to land emergency job %d\n", j.ID);
+            // printf("using padA to land emergency job %d\n", j.ID);
 
             pthread_sleep(t);
 
@@ -479,13 +530,13 @@ void *PadA(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Emergency landing job %d is done on padA\n", j.ID);
+            // printf("Emergency landing job %d is done on padA\n", j.ID);
         }
         else if (launch_queue_size >= 3)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to launch job %d\n", j.ID);
+            // printf("using padA to launch job %d\n", j.ID);
 
             pthread_sleep(2 * t);
 
@@ -498,13 +549,13 @@ void *PadA(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Launch job %d is done on padA\n", j.ID);
+            // printf("Launch job %d is done on padA\n", j.ID);
         }
         else if (landing_queue_size > 0)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to land job %d\n", j.ID);
+            // printf("using padA to land job %d\n", j.ID);
             pthread_sleep(t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -516,13 +567,13 @@ void *PadA(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Landing job %d is done on padA\n", j.ID);
+            //  printf("Landing job %d is done on padA\n", j.ID);
         }
         else if (launch_queue_size > 0)
         {
             Job j = Dequeue(launch_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padA to launch job %d\n", j.ID);
+            // printf("using padA to launch job %d\n", j.ID);
             pthread_sleep(2 * t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -534,7 +585,7 @@ void *PadA(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Launch job %d is done on padA\n", j.ID);
+            //  printf("Launch job %d is done on padA\n", j.ID);
         }
 
         pthread_mutex_unlock(&jlock);
@@ -546,7 +597,7 @@ void *PadA(void *arg)
 // the function that creates plane threads for padB
 void *PadB(void *arg)
 {
-    printf("PadB is awaken...\n");
+    // printf("PadB is awaken...\n");
     pthread_mutex_lock(&padBLock);
     while (time_left_to_end(ending_hour, ending_minute, ending_sec))
     {
@@ -566,7 +617,7 @@ void *PadB(void *arg)
         {
             Job j = Dequeue(emergency_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to land emergency job %d\n", j.ID);
+            // printf("using padB to land emergency job %d\n", j.ID);
             pthread_sleep(t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -578,13 +629,13 @@ void *PadB(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Emergency landing job %d is done on padB\n", j.ID);
+            //    printf("Emergency landing job %d is done on padB\n", j.ID);
         }
         else if (assemble_queue_size >= 3)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to assemble job %d\n", j.ID);
+            //   printf("using padB to assemble job %d\n", j.ID);
             pthread_sleep(6 * t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -596,13 +647,13 @@ void *PadB(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Assemble job %d is done on padB\n", j.ID);
+            // printf("Assemble job %d is done on padB\n", j.ID);
         }
         else if (landing_queue_size > 0)
         {
             Job j = Dequeue(landing_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to land job %d\n", j.ID);
+            // printf("using padB to land job %d\n", j.ID);
             pthread_sleep(t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -613,13 +664,13 @@ void *PadB(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Landing job %d is done on padB\n", j.ID);
+            //  printf("Landing job %d is done on padB\n", j.ID);
         }
         else if (assemble_queue_size > 0)
         {
             Job j = Dequeue(assemble_q);
             pthread_mutex_unlock(&jlock);
-            printf("using padB to assemble job %d\n", j.ID);
+            // printf("using padB to assemble job %d\n", j.ID);
             pthread_sleep(6 * t);
 
             int time_left = time_left_to_end(ending_hour, ending_minute, ending_sec);
@@ -630,7 +681,7 @@ void *PadB(void *arg)
             Enqueue(log_q, j);
             pthread_mutex_unlock(&logLock);
 
-            printf("Assemble job %d is done on padB\n", j.ID);
+            // printf("Assemble job %d is done on padB\n", j.ID);
         }
 
         pthread_mutex_unlock(&jlock);
@@ -643,7 +694,6 @@ void *PadB(void *arg)
 void printLog(Queue *q)
 {
 
-    int num;
     FILE *log_file;
 
     // use appropriate location if you are using MacOS or Linux
@@ -655,7 +705,7 @@ void printLog(Queue *q)
         exit(1);
     }
 
-    fprintf(log_file,"EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time  Pad\n");
+    fprintf(log_file, "EventID \t\t Status \t\t Request Time \t\t End Time \t\t Turnaround Time \t Pad\n");
 
     while (!isEmpty(q))
     {
@@ -689,9 +739,8 @@ void printLog(Queue *q)
         {
             strcpy(pad, "B");
         }
-        fprintf(log_file,"%d \t\t\t %s \t\t %d \t\t\t %d \t\t\t %d \t\t\t %s\n", j.ID, status, j.requestTime, j.endTime, turnaroundTime, pad);
+        fprintf(log_file, "%d \t\t\t %s \t\t %d \t\t\t %d \t\t\t %d \t\t\t %s\n", j.ID, status, j.requestTime, j.endTime, turnaroundTime, pad);
     }
-
 
     fclose(log_file);
 }
