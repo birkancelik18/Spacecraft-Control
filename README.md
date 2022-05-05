@@ -107,6 +107,8 @@ _is_in_simulation_:
 
 The control tower favors the landing spacecrafts and lets the waiting spacecrafts to land until either no more spacecrafts are waiting to land or 3 or more spacerafts are waiting to take-off from the ground or assemble. This might cause starvation for spacecrafts on the air, since a new job is created at every t seconds. Depending on the probablity newly created assembly and launching jobs will take the priority due to their increasing job amounts. In order to prevent this situation, we prioritize the jobs alternatingly. When there are 3+ waiting ground jobs tower first favor ground job then the next turn is given the landing so on and so forth.   
 
+**Note: In part IV all the both of the outputs are in different log files. 
+
 ## Author of the Project
 
 * İrem Karaca  
