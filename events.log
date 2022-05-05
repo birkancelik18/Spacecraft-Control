@@ -1,9 +1,9 @@
-EventID 		 Status 		 Request Time 		 End Time 		 Turnaround Time 		 Pad
+EventID 		 Status 		 Request Time 		 End Time 		 Turnaround Time  Pad
 1 			 Landing 		 0 			 2 			 2 			 A
-2 			 Launch 		 2 			 6 			 4 			 A
-3 			 Landing 		 4 			 6 			 2 			 B
-4 			 Landing 		 6 			 8 			 2 			 A
-6 			 Landing 		 10 			 12 			 2 			 A
-7 			 Landing 		 12 			 14 			 2 			 A
-8 			 Landing 		 14 			 16 			 2 			 A
+3 			 Landing 		 4 			 6 			 2 			 A
+4 			 Landing 		 6 			 8 			 2 			 B
+2 			 Launch 		 2 			 12 			 10 			 A
+6 			 Landing 		 10 			 14 			 4 			 A
+7 			 Landing 		 12 			 16 			 4 			 A
+8 			 Landing 		 14 			 18 			 4 			 A
 5 			 Assembly 		 8 			 20 			 12 			 B
